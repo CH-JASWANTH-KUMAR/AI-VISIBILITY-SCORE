@@ -18,7 +18,7 @@ class MentionDetector:
         try:
             self.nlp = spacy.load("en_core_web_sm")
         except:
-            print("Warning: spaCy model not loaded. Run: python -m spacy download en_core_web_sm")
+            print("Warning: spaCY model not loaded. Run: python -m spacy download en_core_web_sm")
             self.nlp = None
     
     def generate_variations(self, brand):
@@ -196,6 +196,51 @@ class MentionDetector:
             "competitor_count": len(competitors)
         }
 
+
+    def analyze_sentiment(self, text: str, mentioned: bool) -> str:
+        """
+        Feature #4: Analyze sentiment of brand mention
+        Returns: 'Positive', 'Neutral', 'Negative', 'Hesitant'
+        """
+        if not mentioned:
+            return 'N/A'
+        
+        # Extract context around brand mention
+        text_lower = text.lower()
+        
+        # Find brand mention location
+        brand_idx = -1
+        for variant in self.brand_variations:
+            idx = text_lower.find(variant)
+            if idx != -1:
+                brand_idx = idx
+                break
+        
+        if brand_idx == -1:
+            return 'Neutral'
+        
+        # Get surrounding context
+        start = max(0, brand_idx - 200)
+        end = min(len(text), brand_idx + len(self.brand_name) + 200)
+        context = text[start:end].lower()
+        
+        # Sentiment keywords
+        positive_kw = ['best', 'excellent', 'great', 'top', 'recommended', 'popular', 'leading', 'trusted', 'quality', 'favorite', 'amazing', 'outstanding', 'perfect', 'ideal']
+        negative_kw = ['however', 'but', 'expensive', 'limited', 'lacks', 'poor', 'disappointing', 'avoid', 'issue', 'problem', 'worst', 'bad', 'overpriced']
+        hesitant_kw = ['some', 'might', 'could', 'may', 'potentially', 'sometimes', 'depending', 'mixed reviews', 'varies', 'uncertain']
+        
+        pos_count = sum(1 for kw in positive_kw if kw in context)
+        neg_count = sum(1 for kw in negative_kw if kw in context)
+        hes_count = sum(1 for kw in hesitant_kw if kw in context)
+        
+        if neg_count > pos_count:
+            return 'Negative'
+        elif hes_count >= 2:
+            return 'Hesitant'
+        elif pos_count > 0:
+            return 'Positive'
+        else:
+            return 'Neutral'
 
 # Example usage
 if __name__ == "__main__":

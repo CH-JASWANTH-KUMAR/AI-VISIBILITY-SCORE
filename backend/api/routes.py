@@ -237,3 +237,175 @@ async def delete_job(job_id: str, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": f"Job {job_id} deleted successfully"}
+
+
+@router.get("/advanced-analytics/{job_id}")
+async def get_advanced_analytics(job_id: str, db: Session = Depends(get_db)):
+    """
+    Get ALL 10 differentiating features for a completed job
+    Features:
+    1. Why Not Mentioned analysis
+    2. Competitor Reverse Engineering
+    3. Improvement Simulator
+    4. Sentiment Analysis
+    5. Model Behavior Insights
+    6. Query Difficulty Scoring
+    7. Context-Aware Recommendations
+    8. Missed Opportunities Detection
+    9. Competitor Dominance Clustering
+    10. Visibility Timeline Projection
+    """
+    job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.status != 'completed':
+        raise HTTPException(status_code=400, detail="Analysis not complete yet")
+    
+    # Get results
+    results = db.query(Result).filter(Result.job_id == job_id).all()
+    results_data = [r.to_dict() for r in results]
+    
+    # Import all feature modules
+    from ..core.gap_analyzer import GapAnalyzer
+    from ..core.competitor_insights import CompetitorInsights
+    from ..core.improvement_simulator import ImprovementSimulator
+    from ..core.model_behavior import ModelBehaviorAnalyzer
+    from ..core.advanced_analytics import AdvancedAnalytics
+    from ..core.visibility_scorer import VisibilityScorer
+    
+    # Get current score
+    scorer = VisibilityScorer(job.brand_name)
+    scorer_results = []
+    for r in results_data:
+        scorer_results.append({
+            'mentioned': r['brand_mentioned'],
+            'rank': r['brand_rank'],
+            'competitors': r['competitors'] or [],
+            'response': r['full_response'] or '',
+            'model': r['model'],
+            'intent_category': r['intent_category'],
+            'sentiment': r.get('sentiment', 'N/A')
+        })
+    
+    visibility_scores = scorer.calculate_visibility_score(scorer_results)
+    current_score = visibility_scores['overall_score']
+    
+    # Feature #1: Gap Analysis (Why Not Mentioned)
+    gap_analyzer = GapAnalyzer(job.brand_name)
+    gap_analysis = gap_analyzer.analyze_non_mentions(scorer_results)
+    
+    # Feature #2: Competitor Insights
+    comp_insights = CompetitorInsights(job.brand_name, job.industry or "Unknown")
+    competitor_analysis = comp_insights.analyze_competitors(scorer_results)
+    
+    # Feature #4: Sentiment already in results (added to mention_detector)
+    sentiment_summary = {
+        'positive': len([r for r in results_data if r.get('sentiment') == 'Positive']),
+        'neutral': len([r for r in results_data if r.get('sentiment') == 'Neutral']),
+        'negative': len([r for r in results_data if r.get('sentiment') == 'Negative']),
+        'hesitant': len([r for r in results_data if r.get('sentiment') == 'Hesitant'])
+    }
+    
+    # Feature #5: Model Behavior
+    model_analyzer = ModelBehaviorAnalyzer(job.brand_name)
+    model_insights = model_analyzer.analyze_model_patterns(scorer_results)
+    
+    # Features #6-10: Advanced Analytics Bundle
+    advanced = AdvancedAnalytics(job.brand_name, job.industry or "Unknown", current_score)
+    advanced_results = advanced.run_full_analysis(
+        scorer_results,
+        gap_analysis,
+        competitor_analysis
+    )
+    
+    return {
+        'job_id': job_id,
+        'brand_name': job.brand_name,
+        'current_score': current_score,
+        
+        # All 10 features
+        'feature_1_gap_analysis': gap_analysis,
+        'feature_2_competitor_insights': competitor_analysis,
+        'feature_4_sentiment_analysis': sentiment_summary,
+        'feature_5_model_behavior': model_insights,
+        'feature_6_query_difficulty': advanced_results['query_difficulty'],
+        'feature_7_recommendations': advanced_results['recommendations'],
+        'feature_8_missed_opportunities': advanced_results['missed_opportunities'],
+        'feature_9_competitor_clusters': advanced_results['competitor_clusters'],
+        'feature_10_timeline': advanced_results['improvement_timeline'],
+        
+        'summary': {
+            'total_features': 10,
+            'differentiation_level': 'Maximum',
+            'standout_features': [
+                'Why Not Mentioned Explanations',
+                'AI-Powered Competitor Strategy',
+                'Improvement Simulator',
+                'Multi-Model Behavior Analysis',
+                'Missed Opportunities Detection'
+            ]
+        }
+    }
+
+
+@router.post("/simulate-improvement/{job_id}")
+async def simulate_improvement(
+    job_id: str,
+    improvements: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Feature #3: Run improvement simulation with user inputs
+    
+    Request body example:
+    {
+        "new_tagline": "Affordable gourmet meals delivered daily",
+        "new_features": ["Custom meal plans", "Dietary filters"],
+        "new_keywords": ["budget meal kit", "healthy delivery"],
+        "page_updates": ["Pricing comparison page", "Customer reviews page"],
+        "pricing_strategy": "Introduce $6.99/serving starter plan"
+    }
+    """
+    job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.status != 'completed':
+        raise HTTPException(status_code=400, detail="Analysis not complete")
+    
+    # Get results
+    results = db.query(Result).filter(Result.job_id == job_id).all()
+    results_data = [r.to_dict() for r in results]
+    
+    # Get current score
+    from ..core.visibility_scorer import VisibilityScorer
+    from ..core.improvement_simulator import ImprovementSimulator
+    
+    scorer = VisibilityScorer(job.brand_name)
+    scorer_results = []
+    for r in results_data:
+        scorer_results.append({
+            'mentioned': r['brand_mentioned'],
+            'rank': r['brand_rank'],
+            'competitors': r['competitors'] or [],
+            'response': r['full_response'] or '',
+            'model': r['model'],
+            'intent_category': r['intent_category']
+        })
+    
+    visibility_scores = scorer.calculate_visibility_score(scorer_results)
+    current_score = visibility_scores['overall_score']
+    
+    # Run simulation
+    simulator = ImprovementSimulator(job.brand_name, job.industry or "Unknown", current_score)
+    simulation_result = simulator.simulate_improvement(scorer_results, improvements)
+    
+    return {
+        'job_id': job_id,
+        'brand_name': job.brand_name,
+        'simulation': simulation_result,
+        'improvements_tested': improvements
+    }
