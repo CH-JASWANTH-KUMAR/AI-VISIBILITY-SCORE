@@ -13,15 +13,23 @@ from .models import Base
 # Database URL from environment
 DATABASE_URL = os.getenv(
     'DATABASE_URL',
-    'postgresql://postgres:postgres@localhost:5432/ai_visibility'
+    'sqlite:///./ai_visibility.db'
 )
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    echo=False
-)
+# Create engine with SQLite-specific configuration if using SQLite
+if DATABASE_URL.startswith('sqlite'):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={'check_same_thread': False},
+        poolclass=StaticPool,
+        echo=False
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        echo=False
+    )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -29,6 +37,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     """Initialize database tables"""
+    # Drop all tables first to ensure clean migration
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     print("Database tables created successfully")
 

@@ -8,11 +8,13 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import os
 import json
+from ..utils.cache import query_cache
 
 
 class QueryGenerator:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        openai_key = os.getenv('OPENAI_API_KEY')
+        self.client = OpenAI(api_key=openai_key) if openai_key else None
         
         # Query templates by industry
         self.templates = {
@@ -27,6 +29,22 @@ class QueryGenerator:
                 "Meal kit services that deliver to {location}",
                 "Best organic meal delivery options",
                 "Quick and easy meal kits for {lifestyle}"
+            ],
+            "Startup Incubators & Accelerators": [
+                "Best startup incubators for {stage}",
+                "Compare accelerator programs for {industry}",
+                "Top-rated startup accelerators in {location}",
+                "How to get into a startup incubator",
+                "Best programs for {founder_type}",
+                "Startup incubators with mentorship",
+                "Which accelerator is best for {startup_type}?",
+                "Student startup incubators and programs",
+                "Early-stage startup accelerators",
+                "Digital incubators for entrepreneurs",
+                "Best resources for startup founders",
+                "How to find investors for startups",
+                "Startup mentorship programs",
+                "Innovation hubs for entrepreneurs"
             ],
             "SaaS & Software": [
                 "Best {software_type} for {use_case}",
@@ -63,6 +81,14 @@ class QueryGenerator:
                 "Trusted {product_category} retailers",
                 "Best {product_category} subscription boxes",
                 "Where to find quality {product_category}"
+            ],
+            "Education & E-learning": [
+                "Best online courses for {subject}",
+                "Compare e-learning platforms for {audience}",
+                "Most affordable online education programs",
+                "Top-rated learning platforms",
+                "Best courses for {skill}",
+                "Online education for {level}"
             ]
         }
         
@@ -74,13 +100,18 @@ class QueryGenerator:
             "diet_type": ["keto", "vegan", "paleo", "gluten-free", "low-carb", "vegetarian"],
             "feature": ["organic ingredients", "quick prep", "dietary customization", "chef recipes", "family-friendly"],
             "scenario": ["small kitchens", "first time", "picky eaters", "tight budgets", "busy schedules"],
-            "location": ["rural areas", "cities", "suburbs", "apartments"],
+            "location": ["rural areas", "cities", "suburbs", "apartments", "India", "Bangalore", "Mumbai"],
             "lifestyle": ["busy parents", "college students", "remote workers", "fitness enthusiasts", "health-conscious"],
+            
+            # Startup Incubators
+            "stage": ["early-stage startups", "student founders", "first-time entrepreneurs", "tech startups"],
+            "industry": ["tech", "edtech", "fintech", "healthtech", "AI/ML", "blockchain"],
+            "founder_type": ["student entrepreneurs", "first-time founders", "technical founders", "non-technical founders"],
+            "startup_type": ["software startups", "hardware startups", "service businesses", "product companies"],
             
             # SaaS
             "software_type": ["CRM", "project management", "marketing automation", "analytics", "collaboration"],
             "use_case": ["small businesses", "enterprises", "startups", "remote teams", "agencies"],
-            "industry": ["healthcare", "retail", "finance", "education", "manufacturing"],
             "company_size": ["startups", "small businesses", "mid-size companies", "enterprises"],
             
             # Health & Wellness
@@ -88,7 +119,12 @@ class QueryGenerator:
             "goal": ["weight loss", "muscle gain", "stress relief", "better sleep", "flexibility"],
             
             # E-commerce
-            "product_category": ["electronics", "clothing", "home goods", "beauty products", "sporting goods"]
+            "product_category": ["electronics", "clothing", "home goods", "beauty products", "sporting goods"],
+            
+            # Education
+            "subject": ["programming", "business", "design", "marketing", "data science"],
+            "skill": ["coding", "entrepreneurship", "digital marketing", "data analysis"],
+            "level": ["beginners", "professionals", "students", "career changers"]
         }
     
     def expand_template(self, template):
@@ -121,6 +157,10 @@ class QueryGenerator:
     
     def generate_with_llm(self, industry, brand_name, count=30):
         """Use GPT-4 to generate additional diverse queries"""
+        if not self.client:
+            print("OpenAI not available, skipping LLM query generation")
+            return []
+        
         try:
             prompt = f"""
 Generate {count} diverse search queries that consumers would ask when looking for products/services in the {industry} industry.
@@ -163,6 +203,9 @@ Return as a numbered list, one query per line.
     
     def get_embeddings(self, texts):
         """Get embeddings for deduplication"""
+        if not self.client:
+            return []
+        
         try:
             response = self.client.embeddings.create(
                 model="text-embedding-3-small",
@@ -215,16 +258,25 @@ Return as a numbered list, one query per line.
     
     def generate_queries(self, industry, brand_name, target_count=60):
         """Main method: generate diverse queries for the industry"""
+        # Check cache first
+        cached = query_cache.get(industry, brand_name, target_count)
+        if cached:
+            print(f"✅ Using cached queries for {industry}")
+            return cached
+        
         print(f"Generating queries for {industry}...")
         
-        # Step 1: Generate from templates
+        # Step 1: Generate from templates (fast)
         template_queries = self.generate_with_templates(industry)
         print(f"Generated {len(template_queries)} queries from templates")
         
-        # Step 2: Generate with LLM
-        llm_count = max(0, target_count - len(template_queries) + 20)  # Extra for dedup
-        llm_queries = self.generate_with_llm(industry, brand_name, llm_count)
-        print(f"Generated {len(llm_queries)} queries with LLM")
+        # Step 2: Only use LLM if we need more queries
+        if len(template_queries) < target_count:
+            llm_count = max(0, target_count - len(template_queries) + 10)
+            llm_queries = self.generate_with_llm(industry, brand_name, llm_count)
+            print(f"Generated {len(llm_queries)} queries with LLM")
+        else:
+            llm_queries = []
         
         # Step 3: Combine and deduplicate
         all_queries = template_queries + llm_queries
@@ -232,7 +284,12 @@ Return as a numbered list, one query per line.
         print(f"After deduplication: {len(unique_queries)} unique queries")
         
         # Step 4: Return target count
-        return unique_queries[:target_count]
+        result = unique_queries[:target_count]
+        
+        # Cache for future use
+        query_cache.set(industry, brand_name, target_count, result)
+        
+        return result
 
 
 # Example usage

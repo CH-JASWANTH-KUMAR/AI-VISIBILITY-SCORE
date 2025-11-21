@@ -88,10 +88,14 @@ class Result(Base):
     competitors = Column(JSON)  # List of competitor names
     competitor_count = Column(Integer, default=0)
     
+    # Sentiment analysis
+    sentiment = Column(String(50))  # Positive, Neutral, Negative, Hesitant, N/A
+    sentiment_score = Column(Float)  # 0.0 to 1.0
+    
     # Response data
     full_response = Column(Text)
     response_length = Column(Integer)
-    tokens_used = Column(Integer)
+    tokens_used = Column(String(500))  # Changed from Integer to String for JSON
     
     # Metadata
     intent_category = Column(String(100))
@@ -112,6 +116,8 @@ class Result(Base):
             'rank_context': self.rank_context,
             'competitors': self.competitors,
             'competitor_count': self.competitor_count,
+            'sentiment': self.sentiment,
+            'sentiment_score': self.sentiment_score,
             'full_response': self.full_response,
             'response_length': self.response_length,
             'tokens_used': self.tokens_used,

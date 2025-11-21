@@ -4,9 +4,11 @@ Ask AI models WHY they chose specific competitors
 """
 
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from collections import Counter
+import hashlib
+import json
 
 
 class CompetitorInsights:
@@ -15,13 +17,31 @@ class CompetitorInsights:
     def __init__(self, brand_name: str, industry: str):
         self.brand_name = brand_name
         self.industry = industry
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        openai_key = os.getenv('OPENAI_API_KEY')
+        self.client = OpenAI(api_key=openai_key) if openai_key else None
+        
+        # In-memory cache for insights
+        self._cache: Dict[str, Dict[str, Any]] = {}
+    
+    def _generate_cache_key(self, results: List[Dict[str, Any]]) -> str:
+        """Generate cache key from competitor mentions"""
+        competitors = []
+        for r in results:
+            competitors.extend(r.get('competitors', []))
+        
+        # Sort and hash
+        key_string = json.dumps(sorted(competitors))
+        return hashlib.md5(key_string.encode()).hexdigest()
     
     def analyze_competitors(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        For each competitor, ask AI WHY they were chosen
+        For each competitor, ask AI WHY they were chosen (CACHED)
         Returns strategic insights about each competitor
         """
+        # Check cache first
+        cache_key = self._generate_cache_key(results)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
         # Get all mentioned competitors
         competitor_mentions = self._extract_competitor_mentions(results)
         
@@ -46,13 +66,17 @@ class CompetitorInsights:
         # Generate strategic summary
         summary = self._generate_strategic_summary(insights, patterns)
         
-        return {
+        result = {
             'total_competitors': len(competitor_mentions),
             'top_competitors_analyzed': len(insights),
             'insights': insights,
             'dominance_patterns': patterns,
             'strategic_summary': summary
         }
+        
+        # Cache result
+        self._cache[cache_key] = result
+        return result
     
     def _extract_competitor_mentions(self, results: List[Dict]) -> Dict[str, List[Dict]]:
         """Extract all competitor mentions with context"""

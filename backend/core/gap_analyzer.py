@@ -4,9 +4,11 @@ Analyzes responses to identify WHY brand wasn't mentioned and what competitors h
 """
 
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from openai import OpenAI
 import os
+import hashlib
+import json
 
 
 class GapAnalyzer:
@@ -14,7 +16,11 @@ class GapAnalyzer:
     
     def __init__(self, brand_name: str):
         self.brand_name = brand_name
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        openai_key = os.getenv('OPENAI_API_KEY')
+        self.client = OpenAI(api_key=openai_key) if openai_key else None
+        
+        # In-memory cache for analysis results
+        self._cache: Dict[str, Dict[str, Any]] = {}
         
         # Theme categories to analyze
         self.themes = [
@@ -30,20 +36,34 @@ class GapAnalyzer:
             'innovation', 'technology', 'modern'
         ]
     
+    def _generate_cache_key(self, results: List[Dict[str, Any]]) -> str:
+        """Generate cache key based on results"""
+        # Create hash from query texts and mention statuses
+        key_data = [(r.get('query', ''), r.get('mentioned', False)) for r in results]
+        key_string = json.dumps(key_data, sort_keys=True)
+        return hashlib.md5(key_string.encode()).hexdigest()
+    
     def analyze_non_mentions(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Analyze all queries where brand was NOT mentioned
-        Returns gap analysis with reasons
+        Returns gap analysis with reasons (CACHED for performance)
         """
+        # Check cache first
+        cache_key = self._generate_cache_key(results)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         non_mentions = [r for r in results if not r.get('mentioned', False)]
         
         if not non_mentions:
-            return {
+            result = {
                 'total_non_mentions': 0,
                 'reasons': [],
                 'theme_gaps': {},
                 'summary': f'{self.brand_name} was mentioned in all queries!'
             }
+            self._cache[cache_key] = result
+            return result
         
         # Extract themes from competitor answers
         theme_analysis = self._extract_themes(non_mentions)
@@ -57,7 +77,7 @@ class GapAnalyzer:
         # Generate executive summary
         summary = self._generate_summary(len(non_mentions), len(results), theme_gaps)
         
-        return {
+        result = {
             'total_non_mentions': len(non_mentions),
             'total_queries': len(results),
             'non_mention_rate': round(len(non_mentions) / len(results) * 100, 1),
@@ -66,6 +86,10 @@ class GapAnalyzer:
             'summary': summary,
             'top_missing_themes': self._get_top_themes(theme_gaps, 5)
         }
+        
+        # Cache result
+        self._cache[cache_key] = result
+        return result
     
     def _extract_themes(self, non_mentions: List[Dict]) -> Dict[str, List[str]]:
         """Extract what themes competitors emphasize in responses"""

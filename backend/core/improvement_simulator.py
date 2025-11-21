@@ -16,7 +16,8 @@ class ImprovementSimulator:
         self.brand_name = brand_name
         self.industry = industry
         self.current_score = current_score
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        openai_key = os.getenv('OPENAI_API_KEY')
+        self.client = OpenAI(api_key=openai_key) if openai_key else None
     
     def simulate_improvement(
         self,

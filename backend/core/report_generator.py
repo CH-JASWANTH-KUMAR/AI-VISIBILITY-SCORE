@@ -147,9 +147,9 @@ class ReportGenerator:
             'Avg Competitors Found'
         ]
         
-        category_stats['Mention Rate (%)'] = round(
-            (category_stats['Brand Mentions'] / category_stats['Total Queries']) * 100, 1
-        )
+        category_stats['Mention Rate (%)'] = (
+            (category_stats['Brand Mentions'].astype(float) / category_stats['Total Queries'].astype(float)) * 100
+        ).round(1)
         
         return category_stats
     

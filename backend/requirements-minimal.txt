@@ -1,0 +1,39 @@
+# Python Dependencies for Backend - Simplified for quick install
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.44
+alembic==1.12.1
+
+# Async
+httpx==0.25.1
+aiofiles==23.2.1
+
+# AI/ML Libraries
+openai==1.3.5
+anthropic==0.7.1
+google-generativeai==0.3.1
+
+# NLP - Install spaCy from wheel
+fuzzywuzzy==0.18.0
+# python-Levenshtein==0.23.0  # Commented out - requires C++ build tools
+
+# Data processing
+pandas>=2.2.0
+openpyxl==3.1.2
+
+# Web Scraping
+beautifulsoup4==4.12.2
+requests==2.31.0
+
+# Utilities
+python-dotenv==1.0.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+
+# Redis
+redis==5.0.1

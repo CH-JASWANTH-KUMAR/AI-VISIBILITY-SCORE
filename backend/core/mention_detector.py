@@ -5,8 +5,15 @@ Detects brand mentions, rankings, and competitors in AI responses
 
 import re
 from fuzzywuzzy import fuzz
-import spacy
 from typing import Tuple, List, Optional
+
+# Try to import spacy, but make it optional
+try:
+    import spacy
+    SPACY_AVAILABLE = True
+except ImportError:
+    SPACY_AVAILABLE = False
+    print("Warning: spaCy not available. NER features will be limited.")
 
 
 class MentionDetector:
@@ -15,11 +22,13 @@ class MentionDetector:
         self.brand_variations = self.generate_variations(brand_name)
         
         # Load spaCy model for NER (download with: python -m spacy download en_core_web_sm)
-        try:
-            self.nlp = spacy.load("en_core_web_sm")
-        except:
-            print("Warning: spaCY model not loaded. Run: python -m spacy download en_core_web_sm")
-            self.nlp = None
+        self.nlp = None
+        if SPACY_AVAILABLE:
+            try:
+                self.nlp = spacy.load("en_core_web_sm")
+            except:
+                print("Warning: spaCy model not loaded. Run: python -m spacy download en_core_web_sm")
+                self.nlp = None
     
     def generate_variations(self, brand):
         """Generate common brand name variations"""
@@ -41,23 +50,34 @@ class MentionDetector:
     
     def detect_brand_mention(self, text):
         """Detect if brand is mentioned (exact + fuzzy)"""
+        if not text:
+            return False, 0.0, "none"
+            
         text_lower = text.lower()
+        print(f"\n🔍 Searching for '{self.brand_name}' in response...")
+        print(f"   Variations: {self.brand_variations}")
+        print(f"   Text preview: {text[:200]}...")
         
-        # Exact match
+        # Exact match - check each variation
         for variant in self.brand_variations:
-            if variant in text_lower:
+            # Use word boundaries for better matching
+            pattern = r'\b' + re.escape(variant) + r'\b'
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                print(f"   ✅ Found exact match: '{variant}'")
                 return True, 1.0, "exact"
         
-        # Fuzzy match (threshold 85%)
+        # Fuzzy match (threshold 80% - lowered for better detection)
         words = text_lower.split()
         brand_word_count = len(self.brand_name.split())
         
-        for word_group in self.get_ngrams(words, brand_word_count):
+        for word_group in self.get_ngrams(words, max(1, brand_word_count)):
             phrase = ' '.join(word_group)
             ratio = fuzz.ratio(self.brand_name.lower(), phrase)
-            if ratio >= 85:
+            if ratio >= 80:
+                print(f"   ✅ Found fuzzy match: '{phrase}' (score: {ratio}%)")
                 return True, ratio/100, "fuzzy"
         
+        print(f"   ❌ No match found for '{self.brand_name}'")
         return False, 0.0, "none"
     
     def get_ngrams(self, words, n):
@@ -186,6 +206,10 @@ class MentionDetector:
         # Calculate confidence
         confidence = self.calculate_confidence(mentioned, fuzzy_score, rank is not None)
         
+        # Analyze sentiment
+        sentiment = self.analyze_sentiment(response_text, mentioned)
+        sentiment_score = self._calculate_sentiment_score(sentiment)
+        
         return {
             "mentioned": mentioned,
             "confidence": confidence,
@@ -193,8 +217,21 @@ class MentionDetector:
             "rank": rank,
             "rank_context": rank_context,
             "competitors": competitors,
-            "competitor_count": len(competitors)
+            "competitor_count": len(competitors),
+            "sentiment": sentiment,
+            "sentiment_score": sentiment_score
         }
+    
+    def _calculate_sentiment_score(self, sentiment: str) -> float:
+        """Convert sentiment to numeric score"""
+        scores = {
+            'Positive': 1.0,
+            'Neutral': 0.5,
+            'Hesitant': 0.3,
+            'Negative': 0.0,
+            'N/A': 0.5
+        }
+        return scores.get(sentiment, 0.5)
 
 
     def analyze_sentiment(self, text: str, mentioned: bool) -> str:

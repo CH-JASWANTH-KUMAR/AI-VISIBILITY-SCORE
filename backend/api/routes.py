@@ -12,6 +12,7 @@ from .schemas import AnalyzeRequest, JobStatusResponse, ReportResponse, Download
 from ..db.database import get_db
 from ..db.models import AnalysisJob, Result
 from ..workers.tasks import process_analysis_job
+from ..core.query_cache import get_cache_stats, clear_cache
 
 router = APIRouter()
 
@@ -409,3 +410,27 @@ async def simulate_improvement(
         'simulation': simulation_result,
         'improvements_tested': improvements
     }
+
+
+@router.get("/cache/stats")
+async def get_cache_statistics():
+    """
+    Get query cache statistics
+    Shows cache hit rate and memory usage
+    """
+    stats = get_cache_stats()
+    return {
+        'cache_stats': stats,
+        'description': 'Query cache reduces duplicate API calls by 24 hours'
+    }
+
+
+@router.post("/cache/clear")
+async def clear_query_cache():
+    """
+    Clear query cache (admin endpoint)
+    Use if you want fresh responses for all queries
+    """
+    clear_cache()
+    return {'message': 'Query cache cleared successfully'}
+
